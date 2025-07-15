@@ -108,6 +108,7 @@ class SaranaParseDocumentResponse(BaseModel):
     pengali_global_terdeteksi: Optional[float] = Field(None, description="Pengali global (misal, ribuan, jutaan) yang terdeteksi")
     hasil_ekstraksi_kata_kunci: Optional[Dict[str, SaranaKeywordExtraction]] = Field(None, description="Hasil ekstraksi kata kunci keuangan dari teks (jika output_format='text')")
     hasil_ekstraksi_terstruktur: Optional[Dict[str, Any]] = Field(None, description="Hasil ekstraksi terstruktur dalam format JSON (jika output_format='structured_json')")
+    document_id: Optional[str] = Field(None, description="Unique identifier for the processed document")
 
 
 # Untuk Setia
@@ -134,11 +135,80 @@ class SetiaRiskIntelligenceResponse(BaseModel):
     lastUpdateTimestamp: datetime.datetime = Field(description="Timestamp kapan analisis terakhir dilakukan (UTC)")
     error: Optional[str] = Field(None, description="Pesan error jika analisis Setia gagal")
 
+# Additional models for Sarana GET endpoints
+class SaranaDocumentSummary(BaseModel):
+    """Summary of a parsed document for list views."""
+    id: str = Field(description="Unique document identifier")
+    original_filename: str = Field(description="Original filename")
+    file_type: str = Field(description="File type")
+    ocr_engine: str = Field(description="OCR engine used")
+    jenis_pengaju: str = Field(description="Type of applicant")
+    processing_time_seconds: float = Field(description="Processing time in seconds")
+    created_at: str = Field(description="Creation timestamp")
+    file_size_bytes: Optional[int] = Field(None, description="File size in bytes")
+
+class SaranaDocumentListResponse(BaseModel):
+    """Response for document list endpoint."""
+    documents: List[SaranaDocumentSummary] = Field(description="List of documents")
+    total: int = Field(description="Total number of documents")
+    limit: int = Field(description="Number of documents per page")
+    offset: int = Field(description="Offset for pagination")
+    has_more: bool = Field(description="Whether there are more documents")
+    filters: Optional[Dict[str, Any]] = Field(None, description="Applied filters")
+
+class SaranaDocumentDetail(BaseModel):
+    """Detailed document information."""
+    id: str = Field(description="Unique document identifier")
+    original_filename: str = Field(description="Original filename")
+    file_type: str = Field(description="File type")
+    ocr_engine: str = Field(description="OCR engine used")
+    pdf_parsing_method: str = Field(description="PDF parsing method used")
+    output_format: str = Field(description="Output format")
+    jenis_pengaju: str = Field(description="Type of applicant")
+    extracted_text: str = Field(description="Extracted text content")
+    financial_keywords_data: Dict[str, Any] = Field(description="Financial keywords data")
+    structured_data: Optional[Dict[str, Any]] = Field(None, description="Structured data if available")
+    processing_time_seconds: float = Field(description="Processing time in seconds")
+    file_size_bytes: Optional[int] = Field(None, description="File size in bytes")
+    created_at: str = Field(description="Creation timestamp")
+    module: str = Field(description="Module name")
+
+class SaranaProcessingStats(BaseModel):
+    """Processing statistics for Sarana module."""
+    total_documents: int = Field(description="Total number of processed documents")
+    file_types: Dict[str, int] = Field(description="Count by file type")
+    ocr_engines_used: Dict[str, int] = Field(description="Count by OCR engine")
+    average_processing_time_seconds: float = Field(description="Average processing time")
+    fastest_processing_time: float = Field(description="Fastest processing time")
+    slowest_processing_time: float = Field(description="Slowest processing time")
+
+class SaranaCompanyDocuments(BaseModel):
+    """Response untuk dokumen berdasarkan perusahaan."""
+    company_identifier: str
+    documents: List[SaranaDocumentDetail]
+    total: int
+    limit: int
+    offset: int
+
+class SaranaCompanyInfo(BaseModel):
+    """Informasi perusahaan dan statistik dokumen."""
+    company_identifier: str
+    total_documents: int
+    first_document: Optional[str] = Field(None, description="Tanggal dokumen pertama")
+    last_document: Optional[str] = Field(None, description="Tanggal dokumen terakhir")
+
+class SaranaCompanyListResponse(BaseModel):
+    """Response untuk daftar semua perusahaan."""
+    companies: List[SaranaCompanyInfo]
+    total_companies: int
+
 # Tambahkan __all__ untuk kontrol impor jika diperlukan
 __all__ = [
     "FinancialDataInput", "PrabuAnalysisRequest", "PrabuAnalysisResponse",
     "PrabuRatios", "PrabuAltmanAnalysis", "PrabuBeneishAnalysis", "PrabuCommonRatios",
     "PrabuCreditRiskPrediction", "PrabuMLCreditRiskPrediction", # Menambahkan PrabuMLCreditRiskPrediction
     "SaranaKeywordExtraction", "SaranaParseDocumentResponse",
-    "SetiaRiskIntelligenceRequest", "SetiaSupportingSource", "SetiaRiskIntelligenceResponse"
+    "SetiaRiskIntelligenceRequest", "SetiaSupportingSource", "SetiaRiskIntelligenceResponse",
+    "SaranaDocumentSummary", "SaranaDocumentListResponse", "SaranaDocumentDetail", "SaranaProcessingStats",
+    "SaranaCompanyDocuments", "SaranaCompanyInfo", "SaranaCompanyListResponse"
 ]

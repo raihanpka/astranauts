@@ -54,6 +54,17 @@ export const API_CONFIG = {
       DOCUMENT_PARSE: "/document/parse",
       OCR_UPLOAD: "/ocr/upload",
       EXTRACT_DATA: "/extract",
+      // Document management endpoints
+      GET_DOCUMENTS: "/documents",
+      GET_DOCUMENT_DETAIL: "/documents/{id}",
+      GET_EXTRACTED_TEXT: "/documents/{id}/extracted-text",
+      GET_FINANCIAL_DATA: "/documents/{id}/financial-data",
+      GET_STATS: "/stats",
+      // Company-based endpoints
+      GET_COMPANIES: "/companies",
+      GET_COMPANY_DOCUMENTS: "/companies/{company_identifier}/documents",
+      GET_COMPANY_LATEST: "/companies/{company_identifier}/latest",
+      GET_COMPANY_FINANCIAL_DATA: "/companies/{company_identifier}/financial-data",
     },
 
     // SETIA Module (Sentiment Analysis)
@@ -189,5 +200,231 @@ export const API_EXAMPLES = {
     }),
   },
 };
+
+/**
+ * Enhanced API Client compatible with backend code
+ * Provides company-based document management
+ */
+export class EnhancedBackendAPIClient {
+  static async parseFinancialDocumentWithCompany(file, companyIdentifier, options = {}) {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('company_identifier', companyIdentifier)
+      formData.append('output_format', options.outputFormat || 'structured_json')
+      formData.append('ocr_engine', options.ocrEngine || 'tesseract')
+      formData.append('pdf_parsing_method', options.pdfParsingMethod || 'pymupdf')
+      formData.append('jenis_pengaju', options.jenisPengaju || 'korporat')
+
+      const response = await fetch(`${getBaseUrl()}${API_CONFIG.ENDPOINTS.SARANA.DOCUMENT_PARSE}`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Financial parsing error: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      return {
+        success: true,
+        data: {
+          documentId: result.document_id,
+          companyIdentifier: companyIdentifier,
+          currentYear: result.hasil_ekstraksi_semua_dokumen || [],
+          previousYear: result.hasil_ekstraksi_semua_dokumen_t_minus_1 || [],
+          extractedText: result.extracted_text || "",
+          processingTime: result.processing_time_seconds || 0,
+          financialKeywords: result.financial_keywords_data || {}
+        }
+      }
+    } catch (error) {
+      console.error('Enhanced financial document parsing error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  static async getLatestFinancialDataByCompany(companyIdentifier) {
+    try {
+      const url = `${getBaseUrl()}${API_CONFIG.ENDPOINTS.SARANA.GET_COMPANY_FINANCIAL_DATA}`.replace('{company_identifier}', companyIdentifier)
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: API_CONFIG.DEFAULT_HEADERS,
+      })
+
+      if (response.status === 404) {
+        return {
+          success: false,
+          error: `No financial data found for company: ${companyIdentifier}`
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      return {
+        success: true,
+        data: {
+          companyIdentifier: result.company_identifier,
+          documentId: result.document_id,
+          fileName: result.original_filename,
+          createdAt: result.created_at,
+          processingTime: result.processing_time_seconds,
+          structuredData: result.structured_data || {},
+          financialKeywords: result.financial_keywords || {},
+          // Parse untuk kompatibilitas dengan kode lama
+          currentYear: this.parseStructuredDataToArray(result.structured_data?.current || {}),
+          previousYear: this.parseStructuredDataToArray(result.structured_data?.previous || {})
+        }
+      }
+    } catch (error) {
+      console.error('Get latest financial data error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  static async getAllCompanies() {
+    try {
+      const response = await fetch(`${getBaseUrl()}${API_CONFIG.ENDPOINTS.SARANA.GET_COMPANIES}`, {
+        method: 'GET',
+        headers: API_CONFIG.DEFAULT_HEADERS,
+      })
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      return {
+        success: true,
+        data: {
+          companies: result.companies,
+          totalCompanies: result.total_companies
+        }
+      }
+    } catch (error) {
+      console.error('Get all companies error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  static async getCompanyDocuments(companyIdentifier, limit = 20, offset = 0) {
+    try {
+      const url = `${getBaseUrl()}${API_CONFIG.ENDPOINTS.SARANA.GET_COMPANY_DOCUMENTS}`.replace('{company_identifier}', companyIdentifier)
+      
+      const response = await fetch(`${url}?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: API_CONFIG.DEFAULT_HEADERS,
+      })
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      return {
+        success: true,
+        data: result
+      }
+    } catch (error) {
+      console.error('Get company documents error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  // Helper function untuk parsing structured data ke format array yang kompatibel
+  static parseStructuredDataToArray(structuredData) {
+    if (!structuredData || typeof structuredData !== 'object') {
+      return []
+    }
+
+    return [{
+      nama_file: "structured_data",
+      hasil_ekstraksi: structuredData
+    }]
+  }
+
+  // Wrapper functions untuk kompatibilitas dengan kode lama
+  static async parseFinancialDocument(file, companyIdentifier = null) {
+    // Jika companyIdentifier tidak diberikan, ekstrak dari nama file
+    if (!companyIdentifier && file.name) {
+      companyIdentifier = file.name.split('.')[0].replace(/[_-]/g, ' ').trim()
+    }
+    
+    return this.parseFinancialDocumentWithCompany(file, companyIdentifier || 'unknown_company')
+  }
+
+  // Legacy functions untuk kompatibilitas
+  static formatCurrency(amount) {
+    if (!amount) return 'N/A'
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount)
+  }
+
+  static formatPercentage(ratio) {
+    if (ratio === null || ratio === undefined) return 'N/A'
+    return `${(ratio * 100).toFixed(2)}%`
+  }
+
+  static formatRatio(ratio) {
+    if (ratio === null || ratio === undefined) return 'N/A'
+    return ratio.toFixed(2)
+  }
+
+  static calculateRatios(metrics) {
+    if (!metrics) return {}
+    
+    return {
+      currentRatio: metrics.currentAssets && metrics.currentLiabilities 
+        ? metrics.currentAssets / metrics.currentLiabilities : null,
+      debtToEquityRatio: metrics.totalLiabilities && metrics.totalEquity
+        ? metrics.totalLiabilities / metrics.totalEquity : null,
+      returnOnAssets: metrics.netIncome && metrics.totalAssets
+        ? metrics.netIncome / metrics.totalAssets : null,
+      returnOnEquity: metrics.netIncome && metrics.totalEquity
+        ? metrics.netIncome / metrics.totalEquity : null,
+      grossProfitMargin: metrics.grossProfit && metrics.netRevenue
+        ? metrics.grossProfit / metrics.netRevenue : null,
+      netProfitMargin: metrics.netIncome && metrics.netRevenue
+        ? metrics.netIncome / metrics.netRevenue : null
+    }
+  }
+}
+
+// Export enhanced functions
+export const parseFinancialDocumentWithCompany = EnhancedBackendAPIClient.parseFinancialDocumentWithCompany
+export const getLatestFinancialDataByCompany = EnhancedBackendAPIClient.getLatestFinancialDataByCompany
+export const getAllCompanies = EnhancedBackendAPIClient.getAllCompanies
+export const getCompanyDocuments = EnhancedBackendAPIClient.getCompanyDocuments
+
+// Export legacy compatibility functions
+export const parseFinancialDocument = EnhancedBackendAPIClient.parseFinancialDocument
+export const formatCurrency = EnhancedBackendAPIClient.formatCurrency
+export const formatPercentage = EnhancedBackendAPIClient.formatPercentage
+export const formatRatio = EnhancedBackendAPIClient.formatRatio
+export const calculateRatios = EnhancedBackendAPIClient.calculateRatios
 
 export default API_CONFIG;

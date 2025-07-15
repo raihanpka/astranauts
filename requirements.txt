@@ -176,4 +176,4 @@ webencodings==0.5.1
 websockets==15.0.1
 widgetsnbextension==4.0.14
 yarg==0.1.9
-zstandard==0.23.0
+zstandard==0.23.0X
